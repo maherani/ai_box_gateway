@@ -1,0 +1,27 @@
+# Runtime and Model data
+data/
+backups/
+
+# Environment files
+.env
+*.local.env
+connector.local.env
+connector.lock
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env/
+
+# Logs and DB files
+*.log
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal

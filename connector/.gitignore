@@ -1,0 +1,9 @@
+# Connector Git Ignore
+*.env
+sync_state.json
+connector.lock
+*.corrupt.*
+*.tmp
+__pycache__/
+*.py[cod]
+.pytest_cache/

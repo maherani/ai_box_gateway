@@ -1,0 +1,95 @@
+services:
+  ollama:
+    image: ollama/ollama:0.5.4
+    container_name: ai_box_ollama
+    restart: unless-stopped
+    volumes:
+      - ./data/ollama:/root/.ollama
+    networks:
+      - ai_box_net
+    expose:
+      - "11434"
+    # Port 11434 is NOT published to host (strictly internal Docker network)
+
+  anythingllm:
+    image: mintplexlabs/anythingllm@sha256:73db67cfac27814325f5d482faa34404498eb360a92bbb5461d4c44cdf87716d
+    container_name: ai_box_anythingllm
+    restart: unless-stopped
+    environment:
+      - STORAGE_DIR=/app/server/storage
+      - SERVER_PORT=3001
+      - DISABLE_TELEMETRY=true
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE_PATH=http://ollama:11434
+      - OLLAMA_MODEL_PREF=qwen2.5:0.5b-instruct
+      - EMBEDDING_ENGINE=ollama
+      - EMBEDDING_BASE_PATH=http://ollama:11434
+      - EMBEDDING_MODEL_PREF=qwen2.5:0.5b-instruct
+      - VECTOR_DB=lancedb
+    volumes:
+      - ./data/anythingllm:/app/server/storage
+    networks:
+      - ai_box_net
+    expose:
+      - "3001"
+    # Port 3001 is NOT published to host directly (gateway controls all access)
+    depends_on:
+      - ollama
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    image: ai_box_gateway:1.0
+    container_name: ai_box_gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - BACKEND_HOST=anythingllm
+      - BACKEND_PORT=3001
+      - GATEWAY_PORT=3001
+      - MAX_FILE_SIZE_BYTES=2097152
+      - ARCHIVE_OCS_URL=http://archive_proxy:80
+      - ARCHIVE_HOST_HEADER=localhost
+      - GID_MAP_PATH=/app/data/gid_workspace_map.json
+      - DESTINATION_API_KEY=ai_box_internal_api_secret_key
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://docs.maskan,http://docs.maskan:80
+    volumes:
+      - ./data:/app/data
+    networks:
+      - ai_box_net
+      - ai_chat_net
+    depends_on:
+      - anythingllm
+
+  rabbitmq:
+    image: rabbitmq:3.13-alpine
+    container_name: ai_box_rabbitmq
+    restart: unless-stopped
+    hostname: ai_box_rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_VHOST=/
+    volumes:
+      - ./data/rabbitmq:/var/lib/rabbitmq
+      - ./config/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - ai_box_net
+      - ai_chat_net
+    ports:
+      - "127.0.0.1:5672:5672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  ai_box_net:
+    driver: bridge
+  ai_chat_net:
+    name: ai_chat_net
+    external: true

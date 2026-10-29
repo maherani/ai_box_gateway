@@ -1,0 +1,2 @@
+# AI Box Connector & Task Consumer Dependencies
+pika>=1.3.2
